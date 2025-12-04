@@ -110,6 +110,11 @@ Case Files       2x  Tilted bottom case and top plate                           
 
 
 
+(Also, the give curcuits are just demo and the code continues to remain the same.)
+Just Gave an example of how it would be*
+
+
+
 
 
 
