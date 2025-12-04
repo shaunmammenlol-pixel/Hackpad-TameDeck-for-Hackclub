@@ -1,226 +1,230 @@
-import board
-import time
-from kmk.kmk_keyboard import KMKKeyboard
-from kmk.scanners.keypad import MatrixScanner
-from kmk.keys import KC
-from kmk.modules.macros import Macros
-from kmk.modules.encoder import EncoderHandler
-from kmk.modules.layers import Layers
-from kmk.extensions.display import Display
-from kmk.extensions import Extension
-import displayio
-from adafruit_display_text import label
-from terminalio import FONT
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Keyboard.h> // Standard HID Keyboard Library
+#include <Encoder.h> // Library for reading the rotary encoder
 
-# --- 1. CONFIGURATION ---
-BOARD_NAME = "Tamedesk"
-LAYER_NAMES = ["APPS", "UTILITY"]
+// --- PIN DEFINITIONS (Matching Final Wiring Map) ---
+#define NUM_ROWS 3
+#define NUM_COLS 3
+#define ENCODER_CLK_PIN GP8
+#define ENCODER_DT_PIN GP9
+#define ENCODER_SW_PIN GP10
 
-# --- APP LAUNCH MACROS (using Win+R) ---
-# NOTE: These use the Windows/Linux Run command (Win+R) followed by the application's executable name.
-# These commands assume the application's path is already in the system's PATH variable.
-KC.APP_MINECRAFT = KC.MACRO( (KC.LGUI(KC.R), KC.DF('minecraft'), KC.ENTER) )
-KC.APP_ROBLOX = KC.MACRO( (KC.LGUI(KC.R), KC.DF('RobloxPlayer'), KC.ENTER) )
-KC.APP_DISCORD = KC.MACRO( (KC.LGUI(KC.R), KC.DF('discord'), KC.ENTER) )
-KC.APP_TWITCH = KC.MACRO( (KC.LGUI(KC.R), KC.DF('twitch'), KC.ENTER) ) 
-KC.APP_FILEEXPLR = KC.MACRO( (KC.LGUI(KC.R), KC.DF('explorer'), KC.ENTER) )
-KC.APP_SLACK = KC.MACRO( (KC.LGUI(KC.R), KC.DF('slack'), KC.ENTER) )
-KC.APP_SPOTIFY = KC.MACRO( (KC.LGUI(KC.R), KC.DF('spotify'), KC.ENTER) )
-KC.APP_XBOXBAR = KC.LGUI(KC.G) 
-KC.APP_FORTNITE = KC.MACRO( (KC.LGUI(KC.R), KC.DF('FortniteLauncher'), KC.ENTER) ) 
-KC.APP_MUTE = KC.LCTL(KC.LALT(KC.M)) 
+#define YES_BTN_PIN GP12 // Action Button 'Yes'
+#define NO_BTN_PIN GP11  // Action Button 'No'
 
-# Yes/No Button Remaps (using unused F-keys to avoid conflicts)
-KC.YES_BTN = KC.F13 
-KC.NO_BTN = KC.F14
+// Matrix Pins (Must match your wiring)
+const int rowPins[NUM_ROWS] = {GP2, GP3, GP4};
+const int colPins[NUM_COLS] = {GP5, GP6, GP7};
 
-# --- 2. KMK SETUP ---
-keyboard = KMKKeyboard()
-keyboard.modules.append(Macros())
-keyboard.modules.append(Layers())
+// I2C Pins (Matching your plan for the OLED)
+#define OLED_SDA GP0
+#define OLED_SCL GP1
 
-ROWS = (board.GP2, board.GP3, board.GP4,)
-COLS = (board.GP5, board.GP6, board.GP7,)
-keyboard.matrix = MatrixScanner.for_rows_cols(ROWS, COLS, diode_orientation='ROW2COL')
+// --- DISPLAY SETUP (128x32 Screen) ---
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32 // <-- FINAL SIZE CONFIRMED 128x32
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-# Action Buttons ('No'=GP11, 'Yes'=GP12)
-ACTION_BUTTONS = (board.GP11, board.GP12,)
-keyboard.matrix.cols += ACTION_BUTTONS
-keyboard.matrix.rows += (None, None,)
+// --- ENCODER SETUP ---
+Encoder knob(ENCODER_CLK_PIN, ENCODER_DT_PIN);
+long oldKnobPosition = 0;
 
-# Encoder Setup
-keyboard.modules.append(EncoderHandler())
-keyboard.encoders = [
-    (board.GP8, board.GP9, board.GP10,) 
-]
+// --- APP AND MENU DATA ---
+// App display names and the command string (executable name)
+struct App {
+  const char* name;
+  const char* command;
+  int keycode; // Dummy keycode for mapping ease
+};
 
+App apps[] = {
+  {"Minecraft", "minecraft", '1'},
+  {"Roblox", "RobloxPlayer", '2'},
+  {"Discord", "discord", '3'},
+  {"Twitch", "twitch", '4'},
+  {"File Exp", "explorer", '5'},
+  {"Slack", "slack", '6'},
+  {"Spotify", "spotify", '7'},
+  {"Game Bar", "explorer", '8'},
+  {"Fortnite", "FortniteLauncher", '9'}
+};
 
-# --- 3. KEYMAPS ---
-# App launching keys (KC.MACRO(n) uses the INDEX of the app in the APP_NAMES list below)
-KC.APP_1 = KC.MACRO(0) 
-KC.APP_2 = KC.MACRO(1)
-KC.APP_3 = KC.MACRO(2)
-KC.APP_4 = KC.MACRO(3)
-KC.APP_5 = KC.MACRO(4)
-KC.APP_6 = KC.MACRO(5)
-KC.APP_7 = KC.MACRO(6)
-KC.APP_8 = KC.MACRO(7)
-KC.APP_9 = KC.MACRO(8)
+const int NUM_APPS = sizeof(apps) / sizeof(apps[0]);
+int currentSelection = 0;
+bool selectionMode = false; // False = App Selection (Layer 0), True = Utility (Layer 1)
 
-STREAM_LAYER = [
-    KC.APP_1, KC.APP_2, KC.APP_3,    
-    KC.APP_4, KC.APP_5, KC.APP_6,
-    KC.APP_7, KC.APP_8, KC.APP_9,          
-    KC.NO_BTN, KC.YES_BTN, 
-]
+// --- FUNCTION PROTOTYPES ---
+void launchApp(const char* command);
+void scanMatrix();
+void handleEncoder();
+void updateDisplay(const char* line1, const char* line2);
+void handleMenu();
+void handleActionButtons();
 
-NAV_LAYER = [
-    KC.MACRO('MUTE_MIC'), KC.MEDIA_PLAY_PAUSE, KC.CLOSE_WINDOW,
-    KC.VOLUP, KC.VOLDN, KC.TRNS,
-    KC.TRNS, KC.TRNS, KC.TRNS,
-    KC.NO_BTN, KC.YES_BTN,
-]
+// ====================================================================
 
-keyboard.keymap = [
-    STREAM_LAYER,
-    NAV_LAYER,
-]
+void setup() {
+  // Initialize all matrix pins
+  for (int row = 0; row < NUM_ROWS; row++) {
+    pinMode(rowPins[row], OUTPUT);
+    digitalWrite(rowPins[row], HIGH); // Set rows high by default (sinking current)
+  }
+  for (int col = 0; col < NUM_COLS; col++) {
+    pinMode(colPins[col], INPUT_PULLUP); // Use internal pull-up resistors on columns
+  }
 
-# Encoder Map
-keyboard.encoder_map = [
-    (KC.TRNS, KC.TRNS, KC.TRNS), 
-    (KC.VOLUP, KC.VOLDN, KC.MUTE), 
-]
+  // Initialize Action Buttons & Encoder Button
+  pinMode(YES_BTN_PIN, INPUT_PULLUP);
+  pinMode(NO_BTN_PIN, INPUT_PULLUP);
+  pinMode(ENCODER_SW_PIN, INPUT_PULLUP);
 
+  // Initialize Display (Wire is required for I2C)
+  Wire.begin(OLED_SDA, OLED_SCL); 
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    for (;;); // Don't proceed if display fails
+  }
 
-# --- 4. OLED SCREEN LOGIC ---
-APP_NAMES = [
-    ("Minecraft", KC.APP_MINECRAFT),
-    ("Roblox", KC.APP_ROBLOX),
-    ("Discord", KC.APP_DISCORD),
-    ("Twitch", KC.APP_TWITCH),
-    ("File Exp", KC.APP_FILEEXPLR),
-    ("Slack", KC.APP_SLACK),
-    ("Spotify", KC.APP_SPOTIFY),
-    ("Game Bar", KC.APP_XBOXBAR),
-    ("Fortnite", KC.APP_FORTNITE),
-]
+  Keyboard.begin();
+  
+  // Display Homescreen at startup
+  updateDisplay("Tamedesk V1.0", "READY");
+}
 
-class MenuSystem(Extension):
-    def __init__(self, display_ext, app_names, encoder_pins):
-        self.display_ext = display_ext
-        self.app_names = app_names
-        self.encoder_pins = encoder_pins
-        self.current_selection = 0
-        self.encoder_value = 0
-        self.last_encoder_update = 0.0
-        self.last_key_press = 0.0
+void loop() {
+  handleMenu();
+  handleEncoder();
+  handleActionButtons();
+}
+
+// ====================================================================
+// --- MAIN LOGIC FUNCTIONS ---
+// ====================================================================
+
+void handleMenu() {
+  if (selectionMode == false) { // Layer 0: App Selection Mode (9 Keys used for direct selection)
+    
+    scanMatrix(); // Check which of the 9 keys is pressed
+    
+    // Update display with selected app name
+    updateDisplay(apps[currentSelection].name, "Launch: YES/NO");
+    
+  } else { // Layer 1: Utility/Navigation Mode
+    
+    updateDisplay("UTILITY MODE", "Vol/Mute Active");
+    
+  }
+}
+
+void handleEncoder() {
+  long newKnobPosition = knob.read() / 4; // Divide by 4 for detents
+
+  if (selectionMode == false) { // Layer 0: Use encoder to scroll through apps
+
+    if (newKnobPosition != oldKnobPosition) {
+      if (newKnobPosition > oldKnobPosition) {
+        currentSelection = (currentSelection + 1) % NUM_APPS;
+      } else {
+        currentSelection = (currentSelection - 1 + NUM_APPS) % NUM_APPS;
+      }
+      oldKnobPosition = newKnobPosition;
+    }
+  } else { // Layer 1: Use encoder for Volume Control
+    if (newKnobPosition != oldKnobPosition) {
+      if (newKnobPosition > oldKnobPosition) {
+        Keyboard.press(KEY_MEDIA_VOLUME_UP);
+        Keyboard.release(KEY_MEDIA_VOLUME_UP);
+      } else {
+        Keyboard.press(KEY_MEDIA_VOLUME_DOWN);
+        Keyboard.release(KEY_MEDIA_VOLUME_DOWN);
+      }
+      oldKnobPosition = newKnobPosition;
+    }
+    
+    // Handle Encoder Push Button (Mute)
+    if (digitalRead(ENCODER_SW_PIN) == LOW) {
+      Keyboard.press(KEY_MEDIA_MUTE);
+      Keyboard.release(KEY_MEDIA_MUTE);
+      delay(200); // Debounce
+    }
+  }
+}
+
+void handleActionButtons() {
+  // --- YES Button (GP12) ---
+  if (digitalRead(YES_BTN_PIN) == LOW) {
+    if (selectionMode == false) {
+      // Layer 0: Confirm launch of selected app
+      updateDisplay("LAUNCHING...", apps[currentSelection].name);
+      launchApp(apps[currentSelection].command);
+      delay(500);
+      
+    } else {
+      // Layer 1: Do nothing, toggle to Layer 0
+    }
+    selectionMode = false; // Always return to App Selection Mode (Layer 0)
+  }
+
+  // --- NO Button (GP11) ---
+  if (digitalRead(NO_BTN_PIN) == LOW) {
+    // Always returns to Homescreen/App Select (Layer 0)
+    selectionMode = false;
+    currentSelection = 0;
+    updateDisplay("Tamedesk V1.0", "HOMESCREEN");
+    delay(500); // Debounce
+  }
+}
+
+void scanMatrix() {
+  for (int row = 0; row < NUM_ROWS; row++) {
+    digitalWrite(rowPins[row], LOW); // Activate row
+
+    for (int col = 0; col < NUM_COLS; col++) {
+      if (digitalRead(colPins[col]) == LOW) {
         
-    def on_keyboard_start(self, keyboard):
-        display = self.display_ext.display
-        self.group = displayio.Group()
-        display.show(self.group)
-
-        self.layer_label = label.Label(FONT, text=f"LAYER: {LAYER_NAMES[0]}", color=0x00FF00, x=2, y=8)
-        self.title_label = label.Label(FONT, text=BOARD_NAME, color=0xFFFFFF, x=35, y=28)
-        self.app_label = label.Label(FONT, text="", color=0xFFFFFF, x=2, y=48)
-        self.prompt_label = label.Label(FONT, text="", color=0xFFFFFF, x=70, y=8) 
+        // Button is pressed, update selection to this key's index
+        currentSelection = (row * NUM_COLS) + col;
         
-        self.group.append(self.layer_label)
-        self.group.append(self.title_label)
-        self.group.append(self.app_label)
-        self.group.append(self.prompt_label)
+        delay(50); // Debounce
+        goto endScan; 
+      }
+    }
+    digitalWrite(rowPins[row], HIGH); // Deactivate row
+  }
+  
+  endScan:;
+}
 
-    def on_layers_change(self, keyboard, active_layers):
-        self.current_selection = 0
-        self.layer_label.text = f"LAYER: {LAYER_NAMES[active_layers[0]]}"
+// --- UTILITY FUNCTIONS ---
 
-    def on_post_process_key(self, keyboard, key, is_pressed, coordinates):
-        active_layer = keyboard.active_layers[0]
+void updateDisplay(const char* line1, const char* line2) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  
+  // Line 1: Primary Message (App Name / Status)
+  display.setCursor(0, 0);
+  display.print(line1);
+  
+  // Line 2: Secondary Message (Launch prompt / Mode)
+  display.setCursor(0, 16);
+  display.print(line2);
+  
+  display.display();
+}
 
-        if active_layer == 0:
-            if is_pressed:
-                self.last_key_press = time.monotonic()
-                key_index = None
-                try:
-                    key_index = STREAM_LAYER.index(key)
-                except ValueError:
-                    pass
+void launchApp(const char* command) {
+  // Sequence: Win+R -> Type Command -> Enter
+  Keyboard.press(KEY_LEFT_GUI);
+  Keyboard.press('r');
+  Keyboard.releaseAll();
+  delay(100);
 
-                if key_index is not None and key_index < len(self.app_names):
-                    self.current_selection = key_index
-                    self.update_display(keyboard)
-                
-                # Check for YES/NO buttons
-                if key == KC.YES_BTN:
-                    self.execute_app_launch(keyboard)
-                elif key == KC.NO_BTN:
-                    self.clear_selection()
-        
-        self.update_display(keyboard)
-        return key
+  Keyboard.print(command);
+  delay(100);
 
-    def update_display(self, keyboard):
-        active_layer = keyboard.active_layers[0]
-        
-        if active_layer == 0:
-            # Display App Selection Mode
-            selected_app_name = self.app_names[self.current_selection][0]
-            self.title_label.text = selected_app_name
-            self.app_label.text = f"Launch: {selected_app_name}?"
-            self.prompt_label.text = "YES/NO"
-            
-        elif active_layer == 1:
-            # Display Utility Mode (No specific menu logic)
-            self.title_label.text = "UTILITY MODE"
-            self.app_label.text = ""
-            self.prompt_label.text = ""
-
-    def execute_app_launch(self, keyboard):
-        app_kc = self.app_names[self.current_selection][1]
-        keyboard.send_hid_report(app_kc.code, app_kc.hid_type, app_kc.usage_id)
-        self.title_label.text = f"LAUNCHING..."
-        self.app_label.text = f"{self.app_names[self.current_selection][0]}"
-        time.sleep(0.5)
-
-    def clear_selection(self):
-        self.current_selection = 0
-        self.title_label.text = BOARD_NAME
-        self.app_label.text = "Applications"
-        self.prompt_label.text = ""
-
-    def during_exec(self, keyboard):
-        # Encoder selection logic (Only works on Layer 0)
-        active_layer = keyboard.active_layers[0]
-        if active_layer == 0:
-            current_encoder_value = self.display_ext.encoder_value
-            
-            if current_encoder_value != self.encoder_value:
-                # Rotation detected
-                if current_encoder_value > self.encoder_value:
-                    self.current_selection = (self.current_selection + 1) % len(self.app_names)
-                else:
-                    self.current_selection = (self.current_selection - 1 + len(self.app_names)) % len(self.app_names)
-                
-                self.encoder_value = current_encoder_value
-                self.update_display(keyboard)
-
-
-# --- 5. OLED INITIALIZATION ---
-display_ext = Display(
-    to_init=[
-        (
-            board.GP1,
-            board.GP0,
-            128,
-            64,
-        ),
-    ]
-)
-keyboard.extensions.append(display_ext)
-
-# Initialize the custom screen display logic
-keyboard.extensions.append(MenuSystem(display_ext, APP_NAMES, [board.GP8, board.GP9, board.GP10]))
-
-if __name__ == '__main__':
-    keyboard.go()
+  Keyboard.press(KEY_RETURN);
+  Keyboard.release(KEY_RETURN);
+  delay(100); 
+}
