@@ -5,7 +5,7 @@ Heres the list of main hardware i have used for the project!:
 Microcontroller: Raspberry Pi Pico (RP2040) @2020 (kinda old yes, but doe sthe job.) 
 Inputs: 11 Tactile Push Buttons (9 in matrix, 2 dedicated yes/no buttons.)
 Encoder: EC11 Rotary Encoder(US\sed
-Display: SSD1306 OLED (128x64)
+Display: SSD1306 OLED (128x32)
 Case Design: Tilted Wedge/Stream deck surface. (White.)
 Case Hardware holder: Holds all the stuff ie, the cherry MX switches, the oled screen,encoder etc.
 
