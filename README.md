@@ -18,12 +18,16 @@ HOW TO CHANGE THE APPLICATIONS:                                    (Example:Disc
 Say, if the user doesnt like the preset applications then they can go to the raspberry code and do this:
 
 
-Before:                                                                                                                 To:
+Before:                                                              
+                                                      
+KC.LAUNCH_DISCORD = KC.MACRO( (KC.LGUI(KC.R), KC.DF('discord'), KC.ENTER) )                                                  
+KC.APP_1 = KC.LAUNCH_DISCORD                                     
 
-KC.LAUNCH_DISCORD = KC.MACRO( (KC.LGUI(KC.R), KC.DF('discord'), KC.ENTER) )                                              KC.LAUNCH_OUTLOOK = KC.MACRO( (KC.LGUI(KC.R), KC.DF('outlook'), KC.ENTER) )
+To:
+KC.LAUNCH_OUTLOOK = KC.MACRO( (KC.LGUI(KC.R), KC.DF('outlook'), KC.ENTER) )
 
-KC.APP_1 = KC.LAUNCH_DISCORD                                                                                             KC.APP_1 = KC.LAUNCH_OUTLOOK
 
+KC.APP_1 = KC.LAUNCH_OUTLOOK
 
 (Hey if you're rading this you're 2/3rds of the way in!!.Yay!!..Here's your medal🥈 1/3rd of the way to go.!)
 
