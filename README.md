@@ -68,11 +68,9 @@ ie, 9x diodes
 
 Here's a demo working of the curcuit:
 
-<img width="852" height="737" alt="Screenshot 2025-12-03 214750" src="https://github.com/user-attachments/assets/ce20ad9e-ba18-479b-99e1-2bf112f25f70" />
+<img width="1403" height="809" alt="Screenshot 2025-12-04 192047" src="https://github.com/user-attachments/assets/9c933e69-174d-4542-aa3c-aace5f5598f9" />
 
-
-
-
+*I built this curcuit and used tactile button keys as there were no mx keys*
 
 Total bill of items:
 
@@ -102,6 +100,9 @@ Case Files       2x  Tilted bottom case and top plate                           
 <img width="1644" height="849" alt="Bodacious Allis-Vihelmo (5)" src="https://github.com/user-attachments/assets/393e6db5-c292-4d4e-8f7e-331de5d87a2c" />
 
 ![3643332-40](https://github.com/user-attachments/assets/5e213115-664c-4882-bdb8-00163f0832d1)
+
+
+[all of this was taken in TINKERCAD FOR AN EASIER UNDERSTANDING]
 
 
 
